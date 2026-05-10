@@ -216,3 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# AI SaaS Platform specific
+backend/.env
+frontend/.env
+frontend/.env.local
+backend/venv/
+backend/.venv/
+.idea/
+.vscode/
+node_modules/
+.next/
+*.db
