@@ -1,64 +1,55 @@
-import openai
-import hashlib
-import random
+import os
+import httpx
 from app.core.config import settings
 
-# Initialize OpenAI client
-client = openai.OpenAI(
-    api_key=settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY,
-    base_url=settings.OPENROUTER_BASE_URL if settings.OPENROUTER_API_KEY else None
-)
+_cached_embedding_dimension: int | None = None
 
-EMBEDDING_DIMENSION = 1536
+def get_embedding_dimension() -> int:
+    global _cached_embedding_dimension
+    if _cached_embedding_dimension is not None:
+        return _cached_embedding_dimension
 
-def _deterministic_mock_embedding(text: str) -> list[float]:
-    """
-    Build a stable pseudo-embedding for local/dev mode.
-    Same input text always produces the same vector, which keeps
-    Qdrant indexing/search behavior reproducible.
-    """
-    text = text or ""
-    seed = int(hashlib.sha256(text.encode("utf-8")).hexdigest()[:16], 16)
-    rng = random.Random(seed)
-    return [rng.uniform(-1, 1) for _ in range(EMBEDDING_DIMENSION)]
+    if os.getenv("EMBEDDING_DIMENSION") is None:
+        try:
+            response = httpx.post(
+                f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/embeddings",
+                json={"model": settings.OLLAMA_EMBEDDING_MODEL, "prompt": "dimension probe"},
+                timeout=60,
+            )
+            response.raise_for_status()
+            embedding = response.json().get("embedding")
+            if isinstance(embedding, list) and embedding:
+                _cached_embedding_dimension = len(embedding)
+                return _cached_embedding_dimension
+        except Exception:
+            pass
+
+    _cached_embedding_dimension = int(settings.EMBEDDING_DIMENSION)
+    return _cached_embedding_dimension
+
+def _ollama_embedding(text: str) -> list[float]:
+    response = httpx.post(
+        f"{settings.OLLAMA_BASE_URL.rstrip('/')}/api/embeddings",
+        json={"model": settings.OLLAMA_EMBEDDING_MODEL, "prompt": text},
+        timeout=60,
+    )
+    response.raise_for_status()
+    data = response.json()
+    embedding = data.get("embedding")
+    if not isinstance(embedding, list):
+        raise ValueError("Invalid Ollama embeddings response")
+    return embedding
 
 def generate_embedding(text: str) -> list[float]:
     """
-    Generate embedding for a given text using OpenAI API.
-    In a real app, this calls the OpenAI API.
-    For local testing without a real key, we return a mock vector.
+    Generate embedding for a given text using Ollama.
     """
-    try:
-        api_key = settings.OPENROUTER_API_KEY or settings.OPENAI_API_KEY
-        # If using a mock key, return a mock embedding (1536 dimensions for text-embedding-3-small)
-        if not api_key or "mock-key" in api_key:
-            return _deterministic_mock_embedding(text)
-            
-        # Note: OpenRouter might not support embeddings for all models. 
-        # If using OpenRouter, you might need a specific provider's embedding model.
-        # Fallback to OpenAI for embeddings if OpenRouter doesn't support the requested model
-        
-        # Determine if we should use OpenAI client directly for embeddings
-        # since OpenRouter is mainly for chat completions
-        if settings.OPENROUTER_API_KEY and settings.OPENAI_API_KEY and "mock-key" not in settings.OPENAI_API_KEY:
-            # We have both, use OpenAI for embeddings
-            temp_client = openai.OpenAI(api_key=settings.OPENAI_API_KEY)
-            response = temp_client.embeddings.create(
-                input=text,
-                model=settings.EMBEDDING_MODEL
-            )
-            return response.data[0].embedding
-            
-        # Try with whatever client is configured
-        response = client.embeddings.create(
-            input=text,
-            model=settings.EMBEDDING_MODEL
+    embedding = _ollama_embedding(text)
+    if os.getenv("EMBEDDING_DIMENSION") is not None and len(embedding) != int(settings.EMBEDDING_DIMENSION):
+        raise ValueError(
+            f"Embedding dimension mismatch: got {len(embedding)}, expected {int(settings.EMBEDDING_DIMENSION)}"
         )
-        return response.data[0].embedding
-    except Exception as e:
-        print(f"Error generating embedding: {e}")
-        # Return mock on failure to not break the pipeline during dev
-        return _deterministic_mock_embedding(text)
+    return embedding
 
 def create_track_text_for_embedding(track) -> str:
     """

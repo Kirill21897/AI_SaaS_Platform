@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { fetchAPI } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
 
 type Track = {
   id: number;
@@ -40,6 +41,18 @@ const defaultForm: TrackForm = {
 };
 
 export default function TracksPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-900">Загрузка...</div>}>
+      <TracksPageInner />
+    </Suspense>
+  );
+}
+
+function TracksPageInner() {
+  const searchParams = useSearchParams();
+  const highlightIdRaw = searchParams.get("highlight");
+  const highlightId = highlightIdRaw ? Number(highlightIdRaw) : NaN;
+
   const [tracks, setTracks] = useState<Track[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -131,7 +144,12 @@ export default function TracksPage() {
           ) : (
             <div className="mt-6 grid gap-3">
               {tracks.map((track) => (
-                <article key={track.id} className="rounded-xl border border-slate-200 p-4">
+                <article
+                  key={track.id}
+                  className={`rounded-xl border p-4 ${
+                    track.id === highlightId ? "border-blue-500 bg-blue-50" : "border-slate-200"
+                  }`}
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h3 className="font-semibold text-slate-900">{track.title}</h3>

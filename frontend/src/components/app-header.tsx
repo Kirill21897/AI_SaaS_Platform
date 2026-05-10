@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 
 const NAV_ITEMS = [
   { href: "/", label: "Главная" },
-  { href: "/chat", label: "Чат" },
+  { href: "/chat", label: "Агент" },
   { href: "/profile", label: "Профиль" },
   { href: "/tracks", label: "Треки" },
 ];

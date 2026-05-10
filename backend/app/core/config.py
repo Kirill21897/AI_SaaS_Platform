@@ -1,3 +1,4 @@
+from pathlib import Path
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -20,18 +21,30 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     
-    # OpenAI / OpenRouter
-    OPENAI_API_KEY: str = "sk-mock-key-for-now"
-    OPENROUTER_API_KEY: str = ""
-    OPENROUTER_BASE_URL: str = "https://openrouter.ai/api/v1"
-    AGENT_MODEL: str = "gpt-oss-20b"
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    # Ollama
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_CHAT_MODEL: str = "qwen2.5:7b"
+    OLLAMA_EMBEDDING_MODEL: str = "nomic-embed-text"
+    OLLAMA_KEEP_ALIVE: str = "30m"
+    OLLAMA_NUM_CTX: int = 2048
+    OLLAMA_NUM_PREDICT: int = 256
+    OLLAMA_NUM_THREAD: int | None = None
+    OLLAMA_NUM_BATCH: int | None = None
+    OLLAMA_TEMPERATURE: float = 0.2
+    OLLAMA_TOP_P: float = 0.9
+    OLLAMA_REPEAT_PENALTY: float = 1.1
+    EMBEDDING_DIMENSION: int = 1536
+    QDRANT_RECREATE_COLLECTIONS: bool = False
+
     SECRET_KEY: str = "CHANGE_ME_SECRET_KEY"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7 # 7 days
     
     class Config:
         case_sensitive = True
-        env_file = ".env"
+        env_file = (
+            str(Path(__file__).resolve().parents[2] / ".env"),
+            str(Path(__file__).resolve().parents[1] / ".env"),
+        )
 
 settings = Settings()

@@ -60,8 +60,8 @@ flowchart TB
         QDRANT["Qdrant"]
     end
 
-    subgraph EXTERNAL["External AI"]
-        OPENAI["OpenAI API"]
+    subgraph EXTERNAL["Local AI"]
+        OLLAMA["Ollama"]
     end
 
     UI --> ROUTER
@@ -96,9 +96,9 @@ flowchart TB
     EMBED --> QDRANT
     RETRIEVAL --> QDRANT
 
-    EXPLAIN --> OPENAI
-    INTENT --> OPENAI
-    EMBED --> OPENAI
+    EXPLAIN --> OLLAMA
+    INTENT --> OLLAMA
+    EMBED --> OLLAMA
 ```
 
 ## 1. Общая концепция системы

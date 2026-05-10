@@ -1,69 +1,153 @@
-# AI SaaS Platform (Agentic RAG)
+# AI SaaS Platform (Agentic RAG + локальная Ollama)
 
-Платформа рекомендаций карьерно-образовательных треков на базе Agentic RAG.
+Платформа рекомендаций карьерно‑образовательных треков на базе Agentic RAG.
 
-## Инструкция по запуску (MVP)
+Сейчас основной интерфейс для тестирования и демо — страница **Агент** (`/chat`), где объединены:
+- чат со стримингом;
+- панель для тестирования фильтров, tool‑calling, сценариев и метрик;
+- Agent Trace (состояние агента в Redis: filters/last tool/stage).
 
-Для запуска проекта убедитесь, что у вас установлены **Docker**, **Docker Compose**, **Python 3.10+** и **Node.js 18+**.
+## Быстрый старт
 
-### 1. Запуск инфраструктуры (Базы данных)
-В корне проекта запустите контейнеры с PostgreSQL, Redis и Qdrant:
+Требуется: **Docker Desktop**, **docker compose**, **Python 3.10+**, **Node.js 18+**.
+
+### 1) Инфраструктура (Postgres + Redis + Qdrant + Ollama)
+
+В корне репозитория:
+
 ```bash
 docker-compose up -d
 ```
-*Контейнеры будут доступны на портах: Postgres (5433), Redis (6379), Qdrant (6333).*
 
-### 2. Настройка Backend
-Перейдите в папку `backend` и установите зависимости:
+Если у вас compose v2:
+
+```bash
+docker compose up -d
+```
+
+Порты по умолчанию:
+- Postgres: `localhost:5433`
+- Redis: `localhost:6379`
+- Qdrant: `localhost:6333`
+- Ollama: `localhost:11434`
+
+### 2) Скачайте модели в Ollama (в контейнер)
+
+```bash
+docker exec -it ai_saas_ollama ollama pull qwen2.5:7b
+docker exec -it ai_saas_ollama ollama pull nomic-embed-text
+```
+
+### 3) Backend: зависимости и конфиг
+
 ```bash
 cd backend
-python -m venv venv
-# Активация виртуального окружения (Windows):
-venv\Scripts\activate
-# Активация виртуального окружения (Linux/Mac):
-# source venv/bin/activate
-
+python -m venv .venv
+.venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-Создайте файл `.env` в папке `backend` (рядом с `main.py`) и добавьте ваш ключ OpenRouter (или OpenAI):
-```env
-OPENROUTER_API_KEY=ваш_ключ_здесь
-```
-*Если ключ не добавить, система будет работать в Mock-режиме (заглушки вместо ответов нейросети).*
+Linux/macOS:
 
-### 3. Инициализация базы данных и векторного хранилища
-Выполните скрипты для создания демо-пользователей и образовательных треков:
 ```bash
-# Генерация пользователей и треков в PostgreSQL
-python seed.py
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
-# Создание эмбеддингов и загрузка треков в векторную БД Qdrant
+Создайте `backend/.env` (или `backend/app/.env`) и укажите минимум:
+
+```env
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_CHAT_MODEL=qwen2.5:7b
+OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+
+SECRET_KEY=CHANGE_ME_TO_SOMETHING_RANDOM
+```
+
+Опционально (если меняете эмбеддинги/коллекции):
+
+```env
+QDRANT_RECREATE_COLLECTIONS=true
+EMBEDDING_DIMENSION=1536
+```
+
+### 4) Инициализация данных (Postgres) и индексация (Qdrant)
+
+В активированном venv и из папки `backend`:
+
+```bash
+python seed.py
 python index_tracks.py
 ```
 
-### 4. Запуск Backend сервера
+### 5) Запуск Backend
+
+В папке `backend`:
+
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
-*API будет доступно по адресу: http://localhost:8000*
 
-### 5. Запуск Frontend
-Откройте новый терминал, перейдите в папку `frontend` и установите зависимости:
+Проверки:
+- `http://localhost:8000/health`
+- `http://localhost:8000/api/v1/chat/health` (проверка связки backend ↔ Ollama и наличия модели)
+
+### 6) Frontend
+
+В новом терминале:
+
 ```bash
 cd frontend
 npm install
-```
-
-Запустите сервер разработки:
-```bash
 npm run dev
 ```
-*Frontend будет доступен по адресу: http://localhost:3000*
 
----
+Откройте: `http://localhost:3000`
+
+Если backend не на дефолтном адресе, задайте переменную окружения:
+
+```bash
+# PowerShell
+$env:NEXT_PUBLIC_API_URL="http://localhost:8000/api/v1"
+
+# cmd
+set NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+```
 
 ## Как тестировать
-1. Откройте **http://localhost:3000**
-2. Перейдите на страницу **Вход** и выберите один из демо-аккаунтов (Quick Login).
-3. Перейдите в **Чат** и попросите подобрать трек. AI-ассистент проанализирует профиль, выполнит поиск по Qdrant и выдаст рекомендации.
+
+1) Откройте `http://localhost:3000` и перейдите в **Агент** (`/chat`).  
+2) Войдите (если требуется) и отправьте запрос, например:  
+   - `покажи фильтры`  
+   - `только Remote в Москве`  
+   - `подбери треки`  
+   - `ещё`  
+3) Для демо нескольких параллельных диалогов используйте `Session key` в панели Agent Trace.
+
+## Частые проблемы
+
+### Qdrant: несовпадение размерности вектора
+
+Ошибка вида: `vector size is X, but embedding size is Y` означает, что коллекция создана под одну размерность, а текущая embedding‑модель выдаёт другую.
+
+Решение:
+1) В `backend/.env` установите:
+   - `QDRANT_RECREATE_COLLECTIONS=true`
+2) Запустите переиндексацию:
+
+```bash
+cd backend
+python index_tracks.py
+```
+
+### Ollama: 404 или “model not found”
+
+Проверьте, что модель реально скачана в контейнер Ollama:
+
+```bash
+docker exec -it ai_saas_ollama ollama list
+```
+
+И что в `backend/.env` указан корректный `OLLAMA_CHAT_MODEL`.

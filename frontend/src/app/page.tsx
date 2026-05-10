@@ -18,7 +18,7 @@ export default function Home() {
 
           <div className="flex flex-wrap justify-center gap-4">
             <Link href="/chat" className="rounded-xl bg-blue-600 px-8 py-4 text-center font-medium text-white hover:bg-blue-700 shadow-md transition">
-              🤖 Начать диалог с AI
+              🤖 Открыть агента
             </Link>
             <Link href="/profile" className="rounded-xl border border-slate-300 bg-white px-8 py-4 text-center font-medium text-slate-700 hover:bg-slate-50 transition">
               👤 Мой профиль
@@ -42,7 +42,7 @@ export default function Home() {
                 <strong className="text-slate-800">Проверьте данные:</strong> Откройте <Link href="/profile" className="text-blue-600 hover:underline">Профиль</Link> и посмотрите навыки. При необходимости измените их.
               </li>
               <li>
-                <strong className="text-slate-800">Используйте Чат:</strong> Откройте <Link href="/chat" className="text-blue-600 hover:underline">Чат</Link> и попросите подобрать вам программу. Агент учтет ваши навыки и формат работы!
+                <strong className="text-slate-800">Откройте агента:</strong> Перейдите на страницу <Link href="/chat" className="text-blue-600 hover:underline">Агент</Link> и попросите подобрать вам программу. Агент учтет ваши навыки и формат работы!
               </li>
               <li>
                 <strong className="text-slate-800">Управление треками:</strong> В разделе <Link href="/tracks" className="text-blue-600 hover:underline">Треки</Link> можно добавить новые программы, которые сразу станут доступны для поиска.
@@ -73,7 +73,7 @@ export default function Home() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 text-blue-500">✓</span>
-                <span><b>AI Layer:</b> GPT-4o-mini (через OpenRouter/OpenAI).</span>
+                <span><b>AI Layer:</b> локальная Ollama (чат + эмбеддинги).</span>
               </li>
             </ul>
           </div>

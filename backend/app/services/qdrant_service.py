@@ -15,11 +15,30 @@ def init_collections():
     collections = qdrant.get_collections().collections
     collection_names = [col.name for col in collections]
     
+    vector_size = embedding_service.get_embedding_dimension()
+
     if settings.QDRANT_COLLECTION_TRACKS not in collection_names:
         print(f"Creating Qdrant collection: {settings.QDRANT_COLLECTION_TRACKS}")
         qdrant.create_collection(
             collection_name=settings.QDRANT_COLLECTION_TRACKS,
-            vectors_config=VectorParams(size=1536, distance=Distance.COSINE),
+            vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+        )
+        return
+
+    info = qdrant.get_collection(settings.QDRANT_COLLECTION_TRACKS)
+    existing_size = info.config.params.vectors.size
+    if existing_size != vector_size:
+        if settings.QDRANT_RECREATE_COLLECTIONS:
+            qdrant.delete_collection(collection_name=settings.QDRANT_COLLECTION_TRACKS)
+            qdrant.create_collection(
+                collection_name=settings.QDRANT_COLLECTION_TRACKS,
+                vectors_config=VectorParams(size=vector_size, distance=Distance.COSINE),
+            )
+            return
+        raise ValueError(
+            f"Qdrant collection '{settings.QDRANT_COLLECTION_TRACKS}' vector size is {existing_size}, "
+            f"but embedding size is {vector_size}. "
+            f"Set QDRANT_RECREATE_COLLECTIONS=true and reindex, or align EMBEDDING_DIMENSION/model."
         )
 
 def index_track(track):
