@@ -1,153 +1,137 @@
-# AI SaaS Platform (Agentic RAG + локальная Ollama)
+# AI SaaS Platform (Agentic RAG + LangGraph + Ollama)
 
-Платформа рекомендаций карьерно‑образовательных треков на базе Agentic RAG.
+Платформа персональных рекомендаций карьерно-образовательных треков для нефтегазовой отрасли, построенная на базе **Agentic RAG**. 
 
-Сейчас основной интерфейс для тестирования и демо — страница **Агент** (`/chat`), где объединены:
-- чат со стримингом;
-- панель для тестирования фильтров, tool‑calling, сценариев и метрик;
-- Agent Trace (состояние агента в Redis: filters/last tool/stage).
+Система использует **LangGraph** для создания агента (React Agent), который может автономно выбирать инструменты, анализировать профиль пользователя, выполнять семантический поиск, жесткую фильтрацию и давать персонализированные рекомендации. 
 
-## Быстрый старт
+Все вычисления (включая LLM и Embeddings) выполняются локально с **100% GPU-ускорением** через Ollama.
 
-Требуется: **Docker Desktop**, **docker compose**, **Python 3.10+**, **Node.js 18+**.
+---
 
-### 1) Инфраструктура (Postgres + Redis + Qdrant + Ollama)
+## 🏗 Архитектура
 
-В корне репозитория:
+```mermaid
+flowchart TB
+  subgraph Client["Client Layer"]
+    UI["Next.js Frontend\n(Chat UI + Profile)"]
+  end
 
+  subgraph API["FastAPI Backend"]
+    ROUTER["API Routes"]
+    ORCH["AIEngineOrchestrator"]
+  end
+
+  subgraph AGENT["Agent Layer (LangGraph)"]
+    REACT["ReAct Agent"]
+    TOOLS["Tools\n(Search, Filter, Details)"]
+  end
+
+  subgraph STORAGE["Storage Layer"]
+    PG[(PostgreSQL\nTracks & Profiles)]
+    QDRANT[(Qdrant\nVector DB)]
+    REDIS[(Redis\nSession Memory)]
+  end
+
+  subgraph LOCAL_AI["Local AI (GPU)"]
+    OLLAMA["Ollama\n(Qwen3 Models)"]
+  end
+
+  UI -->|HTTP / SSE| ROUTER
+  ROUTER --> ORCH
+  ORCH -->|State| REDIS
+  ORCH --> REACT
+  
+  REACT <-->|Tool Calls| TOOLS
+  REACT <-->|Chat| OLLAMA
+  
+  TOOLS -->|Vectors| QDRANT
+  TOOLS -->|SQL| PG
+  TOOLS -->|Embeddings| OLLAMA
+```
+
+---
+
+## 🚀 Быстрый старт
+
+Требуется: **Docker Desktop** (рекомендуется включить WSL 2 для Windows), **docker compose**, **Python 3.10+**, **Node.js 18+**.
+
+### 1) Запуск инфраструктуры
+В корне репозитория поднимите базы данных и Ollama:
 ```bash
 docker-compose up -d
 ```
+*(Порты: Postgres - 5433, Redis - 6379, Qdrant - 6333, Ollama - 11434)*
 
-Если у вас compose v2:
-
+### 2) Скачивание моделей (Qwen3)
+Платформа настроена на работу с моделями **Qwen3**. Скачайте их в запущенный контейнер:
 ```bash
-docker compose up -d
+docker exec -it ai_saas_ollama ollama pull qwen3.5:4b
+docker exec -it ai_saas_ollama ollama pull qwen3-embedding:0.6b
 ```
+*Контейнер Ollama уже сконфигурирован на использование вашей видеокарты (GPU) через `deploy.resources` в `docker-compose.yml`.*
 
-Порты по умолчанию:
-- Postgres: `localhost:5433`
-- Redis: `localhost:6379`
-- Qdrant: `localhost:6333`
-- Ollama: `localhost:11434`
-
-### 2) Скачайте модели в Ollama (в контейнер)
-
-```bash
-docker exec -it ai_saas_ollama ollama pull qwen2.5:7b
-docker exec -it ai_saas_ollama ollama pull nomic-embed-text
-```
-
-### 3) Backend: зависимости и конфиг
-
+### 3) Настройка Backend
 ```bash
 cd backend
 python -m venv .venv
+# Активация (Windows):
 .venv\Scripts\activate
+# Активация (Linux/macOS):
+# source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-Linux/macOS:
-
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
-Создайте `backend/.env` (или `backend/app/.env`) и укажите минимум:
-
+Создайте файл `backend/.env` со следующим содержимым:
 ```env
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_CHAT_MODEL=qwen2.5:7b
-OLLAMA_EMBEDDING_MODEL=nomic-embed-text
+OLLAMA_CHAT_MODEL=qwen3.5:4b
+OLLAMA_EMBEDDING_MODEL=qwen3-embedding:0.6b
 
 SECRET_KEY=CHANGE_ME_TO_SOMETHING_RANDOM
-```
-
-Опционально (если меняете эмбеддинги/коллекции):
-
-```env
 QDRANT_RECREATE_COLLECTIONS=true
-EMBEDDING_DIMENSION=1536
 ```
 
-### 4) Инициализация данных (Postgres) и индексация (Qdrant)
-
-В активированном venv и из папки `backend`:
-
+### 4) Сидирование БД и индексация (Нефтегазовые треки)
+Платформа поставляется с предзаполненными треками (Гидродинамическое моделирование, Геомеханика, Петрофизика и т.д.).
 ```bash
+# В папке backend, с активированным venv:
 python seed.py
 python index_tracks.py
 ```
 
 ### 5) Запуск Backend
-
-В папке `backend`:
-
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
+Проверка работоспособности LLM: `http://localhost:8000/api/v1/chat/health`
 
-Проверки:
-- `http://localhost:8000/health`
-- `http://localhost:8000/api/v1/chat/health` (проверка связки backend ↔ Ollama и наличия модели)
-
-### 6) Frontend
-
+### 6) Запуск Frontend
 В новом терминале:
-
 ```bash
 cd frontend
 npm install
 npm run dev
 ```
+Откройте `http://localhost:3000`. 
+*Перейдите на страницу **Агент** (`/chat`), чтобы начать тестирование.*
 
-Откройте: `http://localhost:3000`
+---
 
-Если backend не на дефолтном адресе, задайте переменную окружения:
+## 🛠 Особенности реализации Agentic RAG
 
-```bash
-# PowerShell
-$env:NEXT_PUBLIC_API_URL="http://localhost:8000/api/v1"
+1. **LangGraph ReAct Agent**: Агент не просто генерирует текст. Он получает инструкции (system prompt), анализирует профиль пользователя (навыки, формат работы) и решает, какой инструмент (Tool) вызвать.
+2. **Инструменты (Tools)**:
+   - `search_tracks`: Семантический поиск по Qdrant с использованием эмбеддингов Qwen.
+   - `filter_tracks`: Строгая SQL-фильтрация по формату, региону или специализации.
+   - `fetch_track_details`: Получение расширенной информации о конкретном треке.
+3. **Объяснимость (Explainability)**: Агент сопоставляет навыки пользователя (`profile.skills`) с требованиями трека (`track.required_skills` - JSONB) и объясняет, почему трек подходит, а какие навыки стоит подтянуть.
+4. **Контекстная память**: История диалогов и фильтры сохраняются в Redis (`RedisMemoryStore`), позволяя агенту вести stateful-беседу.
 
-# cmd
-set NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-```
+---
 
-## Как тестировать
+## ⚠️ Решение проблем
 
-1) Откройте `http://localhost:3000` и перейдите в **Агент** (`/chat`).  
-2) Войдите (если требуется) и отправьте запрос, например:  
-   - `покажи фильтры`  
-   - `только Remote в Москве`  
-   - `подбери треки`  
-   - `ещё`  
-3) Для демо нескольких параллельных диалогов используйте `Session key` в панели Agent Trace.
-
-## Частые проблемы
-
-### Qdrant: несовпадение размерности вектора
-
-Ошибка вида: `vector size is X, but embedding size is Y` означает, что коллекция создана под одну размерность, а текущая embedding‑модель выдаёт другую.
-
-Решение:
-1) В `backend/.env` установите:
-   - `QDRANT_RECREATE_COLLECTIONS=true`
-2) Запустите переиндексацию:
-
-```bash
-cd backend
-python index_tracks.py
-```
-
-### Ollama: 404 или “model not found”
-
-Проверьте, что модель реально скачана в контейнер Ollama:
-
-```bash
-docker exec -it ai_saas_ollama ollama list
-```
-
-И что в `backend/.env` указан корректный `OLLAMA_CHAT_MODEL`.
+- **Ошибка "peer closed connection" или медленная генерация**: Убедитесь, что Docker использует GPU. Проверьте `docker exec -it ai_saas_ollama nvidia-smi`. Модели Qwen3.5:4b и Qwen3-Embedding:0.6b требуют около 4-5 ГБ VRAM.
+- **Несовпадение размерности вектора Qdrant**: При смене embedding-модели в `.env` убедитесь, что установлен флаг `QDRANT_RECREATE_COLLECTIONS=true`, и заново запустите `python index_tracks.py`.
+- **Ошибки атрибута skills**: Навыки хранятся в поле `required_skills` (формат JSONB: `{"Python": 0.5}`). Убедитесь, что используете правильное поле при обращении к модели `Track`.

@@ -12,3 +12,12 @@ python-multipart>=0.0.6
 redis>=4.6.0
 qdrant-client>=1.6.0
 httpx>=0.24.0
+
+# Agentic RAG
+langchain>=0.1.0
+langgraph>=0.0.1
+langchain-community>=0.0.1
+langchain-openai>=0.0.1
+langsmith>=0.0.1
+pydantic-ai>=0.1.0
+langchain-qdrant>=0.1.0
