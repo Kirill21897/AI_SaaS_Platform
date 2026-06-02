@@ -1,14 +1,23 @@
-import json
 from langgraph.prebuilt import create_react_agent
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
+
 from app.core.config import settings
 from .tools import AgenticRAGTools
 
 def build_rag_graph(tools: AgenticRAGTools, llm=None):
-    chat_model = ChatOllama(
-        base_url=settings.OLLAMA_BASE_URL,
-        model=settings.OLLAMA_CHAT_MODEL,
-        temperature=0.2,
+    if settings.OPENROUTER_API_KEY is None or not settings.OPENROUTER_API_KEY.get_secret_value():
+        raise RuntimeError("OPENROUTER_API_KEY is not set")
+
+    chat_model = ChatOpenAI(
+        api_key=settings.OPENROUTER_API_KEY.get_secret_value(),
+        base_url=settings.OPENROUTER_BASE_URL,
+        model=settings.OPENROUTER_MODEL,
+        temperature=settings.OPENROUTER_TEMPERATURE,
+        max_tokens=settings.OPENROUTER_MAX_TOKENS,
+        default_headers={
+            "HTTP-Referer": settings.OPENROUTER_SITE_URL,
+            "X-Title": settings.OPENROUTER_APP_NAME,
+        },
     )
     
     sys_msg = (

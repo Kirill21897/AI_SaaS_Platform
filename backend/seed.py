@@ -15,40 +15,55 @@ from app.crud.crud_user import create_user
 from app.crud.crud_profile import create_profile
 from app.schemas.user import UserCreate
 from app.schemas.profile import ProfileCreate
+from app.core.config import settings
 
-demo_users = [
-    {
-        "email": "backend@demo.com",
-        "password": "password123",
-        "profile": {
-            "first_name": "Алексей",
-            "last_name": "Иванов",
-            "about": "Инженер-гидродинамик с опытом работы в Petrel и tNavigator.",
-            "specialty": "Инженер-гидродинамик",
-            "location": "Москва",
-            "employment_format": "Hybrid",
-            "skills": ["tNavigator", "Excel", "геология", "Eclipse", "Petrel"]
-        }
-    },
-    {
-        "email": "data@demo.com",
-        "password": "password123",
-        "profile": {
-            "first_name": "Елена",
-            "last_name": "Смирнова",
-            "about": "Люблю анализировать данные добычи и строить дашборды.",
-            "specialty": "Аналитик добычи",
-            "location": "Тюмень",
-            "employment_format": "Remote",
-            "skills": ["Python", "SQL", "Power_BI", "machine_learning", "анализ_добычи"]
-        }
-    },
-    {
-        "email": "empty@demo.com",
-        "password": "password123",
-        "profile": None
-    }
-]
+def _demo_users():
+    users = []
+
+    if settings.DEMO_BACKEND_EMAIL and settings.DEMO_BACKEND_PASSWORD:
+        users.append(
+            {
+                "email": settings.DEMO_BACKEND_EMAIL,
+                "password": settings.DEMO_BACKEND_PASSWORD.get_secret_value(),
+                "profile": {
+                    "first_name": "Алексей",
+                    "last_name": "Иванов",
+                    "about": "Инженер-гидродинамик с опытом работы в Petrel и tNavigator.",
+                    "specialty": "Инженер-гидродинамик",
+                    "location": "Москва",
+                    "employment_format": "Hybrid",
+                    "skills": ["tNavigator", "Excel", "геология", "Eclipse", "Petrel"],
+                },
+            }
+        )
+
+    if settings.DEMO_DATA_EMAIL and settings.DEMO_DATA_PASSWORD:
+        users.append(
+            {
+                "email": settings.DEMO_DATA_EMAIL,
+                "password": settings.DEMO_DATA_PASSWORD.get_secret_value(),
+                "profile": {
+                    "first_name": "Елена",
+                    "last_name": "Смирнова",
+                    "about": "Люблю анализировать данные добычи и строить дашборды.",
+                    "specialty": "Аналитик добычи",
+                    "location": "Тюмень",
+                    "employment_format": "Remote",
+                    "skills": ["Python", "SQL", "Power_BI", "machine_learning", "анализ_добычи"],
+                },
+            }
+        )
+
+    if settings.DEMO_EMPTY_EMAIL and settings.DEMO_EMPTY_PASSWORD:
+        users.append(
+            {
+                "email": settings.DEMO_EMPTY_EMAIL,
+                "password": settings.DEMO_EMPTY_PASSWORD.get_secret_value(),
+                "profile": None,
+            }
+        )
+
+    return users
 
 seed_data = [
 # === Гидродинамическое моделирование ===
@@ -374,7 +389,7 @@ def load_seed_data():
     try:
         # Seed Users
         print("Checking demo users...")
-        for u_data in demo_users:
+        for u_data in _demo_users():
             existing_user = db.query(User).filter(User.email == u_data["email"]).first()
             if not existing_user:
                 print(f"Creating user {u_data['email']}...")

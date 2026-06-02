@@ -13,6 +13,12 @@ def _hash_password(password: str, salt: str = None) -> str:
     hashed = hashlib.sha256((password + salt).encode('utf-8')).hexdigest()
     return f"{salt}${hashed}"
 
+
+def _get_secret_key() -> str:
+    if settings.SECRET_KEY is None or not settings.SECRET_KEY.get_secret_value():
+        raise RuntimeError("SECRET_KEY is not set")
+    return settings.SECRET_KEY.get_secret_value()
+
 def create_access_token(
     subject: Union[str, Any], expires_delta: timedelta = None
 ) -> str:
@@ -23,7 +29,11 @@ def create_access_token(
             minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
         )
     to_encode = {"exp": expire, "sub": str(subject)}
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode,
+        _get_secret_key(),
+        algorithm=settings.ALGORITHM,
+    )
     return encoded_jwt
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:

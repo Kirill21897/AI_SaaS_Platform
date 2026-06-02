@@ -43,10 +43,14 @@ function getDashStore(): ChatStore {
 }
 
 type HealthInfo = {
-  ollama_base_url?: string;
-  ollama_version?: string;
+  llm_provider?: string;
+  chat_base_url?: string;
   chat_model?: string;
-  chat_model_loaded?: boolean;
+  chat_model_available?: boolean;
+  embedding_base_url?: string;
+  embedding_model?: string;
+  embedding_ready?: boolean;
+  embedding_error?: string | null;
   error?: string;
 };
 
@@ -87,9 +91,18 @@ type Track = {
   specialization: string;
   region?: string | null;
   format?: string | null;
+  min_gpa?: number | null;
   required_skills?: Record<string, number>;
   tasks?: string[];
 };
+
+function formatTrackMode(value?: string | null): string {
+  if (!value) return "Не указан";
+  if (value === "Remote") return "Удаленно";
+  if (value === "Office" || value === "Onsite") return "Офис";
+  if (value === "Hybrid") return "Гибрид";
+  return value;
+}
 
 function parseTrackCardTag(tag: string): { id: number; score?: number; skills?: string[] } | null {
   const attrs: Record<string, string> = {};
@@ -135,38 +148,71 @@ function TrackCard(props: { id: number; score?: number; skills?: string[] }) {
   }, [id]);
 
   return (
-    <div className="my-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <span className="rounded bg-blue-100 px-2 py-1 text-xs font-bold uppercase tracking-wider text-blue-700">
-          Рекомендация
-        </span>
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          {typeof score === "number" && <span>Match: {score}%</span>}
-          <span>ID: {id}</span>
+    <article className="my-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-slate-100 bg-slate-50 px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="rounded bg-blue-100 px-2 py-1 text-xs font-bold uppercase tracking-wider text-blue-700">
+            Рекомендация
+          </span>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            {typeof score === "number" && <span>Match: {score}%</span>}
+            <span>ID: {id}</span>
+          </div>
         </div>
       </div>
 
+      <div className="p-4">
       {error ? (
         <div className="text-sm text-red-700">{error}</div>
       ) : track ? (
         <>
-          <h3 className="text-lg font-semibold text-slate-900">{track.title}</h3>
-          <p className="mt-1 text-sm text-slate-600">{track.description}</p>
-          <div className="mt-3 flex flex-wrap gap-2 text-xs">
-            <span className="rounded bg-slate-50 px-2 py-1 text-slate-700 border border-slate-200">
-              {track.specialization}
-            </span>
-            <span className="rounded bg-slate-50 px-2 py-1 text-slate-700 border border-slate-200">
-              {track.region ?? "—"}
-            </span>
-            <span className="rounded bg-slate-50 px-2 py-1 text-slate-700 border border-slate-200">
-              {track.format ?? "—"}
-            </span>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <Link
+                href={`/tracks/${id}`}
+                className="text-lg font-semibold text-slate-900 transition hover:text-blue-700 hover:underline"
+              >
+                {track.title}
+              </Link>
+              <p className="mt-1 text-sm leading-6 text-slate-600">{track.description}</p>
+            </div>
           </div>
 
+          <div className="mt-3 flex flex-wrap gap-2 text-xs">
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
+              {track.specialization}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
+              {track.region ?? "Регион не указан"}
+            </span>
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
+              {formatTrackMode(track.format)}
+            </span>
+            {typeof track.min_gpa === "number" && track.min_gpa > 0 && (
+              <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-slate-700">
+                GPA от {track.min_gpa}
+              </span>
+            )}
+          </div>
+
+          {track.tasks && track.tasks.length > 0 && (
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Что внутри программы
+              </div>
+              <div className="space-y-1">
+                {track.tasks.slice(0, 3).map((task) => (
+                  <div key={task} className="text-sm text-slate-700">
+                    • {task}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {skills && skills.length > 0 && (
-            <div className="mt-3">
-              <div className="text-xs font-semibold text-slate-600 mb-1">Совпали навыки</div>
+            <div className="mt-4">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Совпали навыки</div>
               <div className="flex flex-wrap gap-2">
                 {skills.map((s) => (
                   <span key={s} className="rounded-full bg-blue-600/10 px-3 py-1 text-xs text-blue-700">
@@ -177,19 +223,26 @@ function TrackCard(props: { id: number; score?: number; skills?: string[] }) {
             </div>
           )}
 
-          <div className="mt-4">
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href={`/tracks/${id}`}
+              className="inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
+            >
+              Открыть программу
+            </Link>
             <Link
               href={`/tracks?highlight=${id}`}
-              className="inline-flex items-center rounded border border-slate-300 bg-white px-4 py-1.5 text-sm hover:bg-slate-50 transition-colors"
+              className="inline-flex items-center rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50"
             >
-              Открыть в “Треках”
+              Открыть в каталоге
             </Link>
           </div>
         </>
       ) : (
         <div className="text-sm text-slate-600">Загрузка...</div>
       )}
-    </div>
+      </div>
+    </article>
   );
 }
 
@@ -629,23 +682,40 @@ export default function DashboardPage() {
               ) : health ? (
                 <div className="space-y-2 text-sm text-slate-700">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Ollama</span>
-                    <span className="font-medium">{health.ollama_base_url ?? "—"}</span>
+                    <span className="text-slate-500">Provider</span>
+                    <span className="font-medium">{health.llm_provider ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Version</span>
-                    <span className="font-medium">{health.ollama_version ?? "—"}</span>
+                    <span className="text-slate-500">Chat API</span>
+                    <span className="font-medium">{health.chat_base_url ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-slate-500">Model</span>
                     <span className="font-medium">{health.chat_model ?? "—"}</span>
                   </div>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-slate-500">Loaded</span>
-                    <span className={`font-medium ${health.chat_model_loaded ? "text-green-700" : "text-slate-700"}`}>
-                      {health.chat_model_loaded ? "yes" : "no"}
+                    <span className="text-slate-500">Model ready</span>
+                    <span className={`font-medium ${health.chat_model_available ? "text-green-700" : "text-slate-700"}`}>
+                      {health.chat_model_available ? "yes" : "no"}
                     </span>
                   </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Embeddings</span>
+                    <span className="font-medium">{health.embedding_model ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Embedding API</span>
+                    <span className="font-medium">{health.embedding_base_url ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-slate-500">Embedding ready</span>
+                    <span className={`font-medium ${health.embedding_ready ? "text-green-700" : "text-slate-700"}`}>
+                      {health.embedding_ready ? "yes" : "no"}
+                    </span>
+                  </div>
+                  {health.embedding_error && (
+                    <div className="text-xs text-red-700">{health.embedding_error}</div>
+                  )}
                 </div>
               ) : (
                 <div className="text-sm text-slate-600">—</div>

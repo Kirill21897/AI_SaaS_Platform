@@ -73,7 +73,7 @@ export default function Home() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="mt-0.5 text-blue-500">✓</span>
-                <span><b>AI Layer:</b> локальная Ollama (чат + эмбеддинги).</span>
+                <span><b>AI Layer:</b> OpenRouter для чата и эмбеддингов.</span>
               </li>
             </ul>
           </div>

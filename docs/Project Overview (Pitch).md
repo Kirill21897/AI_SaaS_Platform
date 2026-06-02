@@ -37,8 +37,8 @@ flowchart TB
         QDRANT["Qdrant (Vectors)"]
     end
 
-    subgraph LOCAL_AI["Local AI (GPU Accelerated)"]
-        OLLAMA["Ollama (Qwen3)"]
+    subgraph CLOUD_AI["Cloud AI API"]
+        OPENROUTER["OpenRouter"]
     end
 
     UI --> ROUTER
@@ -47,7 +47,7 @@ flowchart TB
     REACT <--> TOOLS
     TOOLS --> PG
     TOOLS --> QDRANT
-    REACT <--> OLLAMA
+    REACT <--> OPENROUTER
     ORCH --> REDIS
 ```
 
@@ -67,7 +67,7 @@ flowchart TB
 - **PostgreSQL:** Хранение пользователей, профилей и каталога треков с JSONB-навыками.
 - **Qdrant:** Векторная база для хранения эмбеддингов треков и быстрого семантического поиска.
 - **Redis:** Хранение состояния сессии (Message history, Filters).
-- **Ollama:** Локальное исполнение LLM `qwen3.5:4b` и эмбеддингов `qwen3-embedding:0.6b` на GPU.
+- **OpenRouter:** Выполнение chat-модели `qwen/qwen3.5-flash-02-23` и embedding-модели `nvidia/llama-nemotron-embed-vl-1b-v2:free` через единый API.
 
 ---
 
@@ -76,14 +76,14 @@ flowchart TB
 1. **User Input:** Пользователь пишет "Подбери мне трек по моделированию пласта".
 2. **Context Assembly:** Оркестратор подтягивает историю диалога и данные профиля (навыки, локация) из БД.
 3. **Agent Reasoning:** LLM решает, что нужно использовать инструмент `search_tracks`.
-4. **Tool Execution:** Выполняется семантический поиск по Qdrant. Векторизуется запрос (через Qwen3-Embedding).
+4. **Tool Execution:** Выполняется семантический поиск по Qdrant. Векторизуется запрос через embedding API OpenRouter.
 5. **Observation:** Агент получает результаты поиска и анализирует их соответствие профилю пользователя.
 6. **Final Response:** LLM формирует финальный ответ на русском языке, объясняя, почему конкретный трек подходит, и отдает теги для рендера карточек на клиенте.
 
 ---
 
 ## 5. Преимущества архитектуры
-- **Приватность и Безопасность:** Все модели крутятся локально (через Ollama). Данные не уходят сторонним API.
+- **Гибкость интеграции:** Chat и embeddings доступны через единый OpenRouter API без локального ML-стека.
 - **Производительность:** Автоматическое использование GPU (CUDA) для LLM и эмбеддингов.
 - **Точность (Explainability):** LLM не галлюцинирует треки. Она работает только с теми данными, которые вернули Tools из базы данных.
 - **Расширяемость:** Добавление новых возможностей (например, анализ резюме) сводится к добавлению нового Tool'а в LangGraph.

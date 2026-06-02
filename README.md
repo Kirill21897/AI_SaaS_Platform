@@ -1,10 +1,10 @@
-# AI SaaS Platform (Agentic RAG + LangGraph + Ollama)
+# AI SaaS Platform (Agentic RAG + LangGraph + OpenRouter)
 
 Платформа персональных рекомендаций карьерно-образовательных треков для нефтегазовой отрасли, построенная на базе **Agentic RAG**. 
 
 Система использует **LangGraph** для создания агента (React Agent), который может автономно выбирать инструменты, анализировать профиль пользователя, выполнять семантический поиск, жесткую фильтрацию и давать персонализированные рекомендации. 
 
-Все вычисления (включая LLM и Embeddings) выполняются локально с **100% GPU-ускорением** через Ollama.
+И чатовая модель, и эмбеддинги для `Qdrant` работают через **OpenRouter**.
 
 ---
 
@@ -32,8 +32,12 @@ flowchart TB
     REDIS[(Redis\nSession Memory)]
   end
 
-  subgraph LOCAL_AI["Local AI (GPU)"]
-    OLLAMA["Ollama\n(Qwen3 Models)"]
+  subgraph CHAT_AI["Cloud Chat API"]
+    OPENROUTER["OpenRouter\n(Qwen 3.5 Flash)"]
+  end
+
+  subgraph EMBEDDINGS["Embedding API"]
+    EMB_MODEL["OpenRouter\n(NVIDIA Nemotron Embed)"]
   end
 
   UI -->|HTTP / SSE| ROUTER
@@ -42,11 +46,11 @@ flowchart TB
   ORCH --> REACT
   
   REACT <-->|Tool Calls| TOOLS
-  REACT <-->|Chat| OLLAMA
+  REACT <-->|Chat| OPENROUTER
   
   TOOLS -->|Vectors| QDRANT
   TOOLS -->|SQL| PG
-  TOOLS -->|Embeddings| OLLAMA
+  TOOLS -->|Embeddings| EMB_MODEL
 ```
 
 ---
@@ -56,19 +60,19 @@ flowchart TB
 Требуется: **Docker Desktop** (рекомендуется включить WSL 2 для Windows), **docker compose**, **Python 3.10+**, **Node.js 18+**.
 
 ### 1) Запуск инфраструктуры
-В корне репозитория поднимите базы данных и Ollama:
+Сначала создайте локальные env-файлы из шаблонов:
+```bash
+copy .env.example .env
+copy frontend\.env.example frontend\.env.local
+```
+Заполните секреты в `.env` и, при необходимости, demo-данные во `frontend/.env.local`.
+
+### 2) Запуск инфраструктуры
+В корне репозитория поднимите базы данных:
 ```bash
 docker-compose up -d
 ```
-*(Порты: Postgres - 5433, Redis - 6379, Qdrant - 6333, Ollama - 11434)*
-
-### 2) Скачивание моделей (Qwen3)
-Платформа настроена на работу с моделями **Qwen3**. Скачайте их в запущенный контейнер:
-```bash
-docker exec -it ai_saas_ollama ollama pull qwen3.5:4b
-docker exec -it ai_saas_ollama ollama pull qwen3-embedding:0.6b
-```
-*Контейнер Ollama уже сконфигурирован на использование вашей видеокарты (GPU) через `deploy.resources` в `docker-compose.yml`.*
+*(Порты: Postgres - 5433, Redis - 6379, Qdrant - 6333)*
 
 ### 3) Настройка Backend
 ```bash
@@ -81,18 +85,19 @@ python -m venv .venv
 
 pip install -r requirements.txt
 ```
+Backend и `docker-compose` используют общий корневой `.env`, поэтому секреты больше не хранятся в коде и yaml-файлах.
 
-Создайте файл `backend/.env` со следующим содержимым:
+### 4) Настройка OpenRouter
+Заполните в корневом `.env` как минимум:
 ```env
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_CHAT_MODEL=qwen3.5:4b
-OLLAMA_EMBEDDING_MODEL=qwen3-embedding:0.6b
-
-SECRET_KEY=CHANGE_ME_TO_SOMETHING_RANDOM
-QDRANT_RECREATE_COLLECTIONS=true
+OPENROUTER_API_KEY=replace-with-your-openrouter-key
+OPENROUTER_MODEL=qwen/qwen3.5-flash-02-23
+OPENROUTER_EMBEDDING_MODEL=nvidia/llama-nemotron-embed-vl-1b-v2:free
+SECRET_KEY=replace-with-a-long-random-secret
 ```
+Если OpenRouter не возвращает размерность embedding-модели на старте, дополнительно задайте `EMBEDDING_DIMENSION`.
 
-### 4) Сидирование БД и индексация (Нефтегазовые треки)
+### 5) Сидирование БД и индексация (Нефтегазовые треки)
 Платформа поставляется с предзаполненными треками (Гидродинамическое моделирование, Геомеханика, Петрофизика и т.д.).
 ```bash
 # В папке backend, с активированным venv:
@@ -100,13 +105,13 @@ python seed.py
 python index_tracks.py
 ```
 
-### 5) Запуск Backend
+### 6) Запуск Backend
 ```bash
 uvicorn app.main:app --reload --port 8000
 ```
-Проверка работоспособности LLM: `http://localhost:8000/api/v1/chat/health`
+Проверка работоспособности OpenRouter для chat и embeddings: `http://localhost:8000/api/v1/chat/health`
 
-### 6) Запуск Frontend
+### 7) Запуск Frontend
 В новом терминале:
 ```bash
 cd frontend
@@ -122,7 +127,7 @@ npm run dev
 
 1. **LangGraph ReAct Agent**: Агент не просто генерирует текст. Он получает инструкции (system prompt), анализирует профиль пользователя (навыки, формат работы) и решает, какой инструмент (Tool) вызвать.
 2. **Инструменты (Tools)**:
-   - `search_tracks`: Семантический поиск по Qdrant с использованием эмбеддингов Qwen.
+   - `search_tracks`: Семантический поиск по Qdrant с использованием embedding API OpenRouter.
    - `filter_tracks`: Строгая SQL-фильтрация по формату, региону или специализации.
    - `fetch_track_details`: Получение расширенной информации о конкретном треке.
 3. **Объяснимость (Explainability)**: Агент сопоставляет навыки пользователя (`profile.skills`) с требованиями трека (`track.required_skills` - JSONB) и объясняет, почему трек подходит, а какие навыки стоит подтянуть.
@@ -132,6 +137,7 @@ npm run dev
 
 ## ⚠️ Решение проблем
 
-- **Ошибка "peer closed connection" или медленная генерация**: Убедитесь, что Docker использует GPU. Проверьте `docker exec -it ai_saas_ollama nvidia-smi`. Модели Qwen3.5:4b и Qwen3-Embedding:0.6b требуют около 4-5 ГБ VRAM.
-- **Несовпадение размерности вектора Qdrant**: При смене embedding-модели в `.env` убедитесь, что установлен флаг `QDRANT_RECREATE_COLLECTIONS=true`, и заново запустите `python index_tracks.py`.
+- **Ошибка доступа к OpenRouter**: Проверьте `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` и доступность модели `qwen/qwen3.5-flash-02-23` в вашем аккаунте.
+- **Ошибка embedding API**: Проверьте `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL` и модель `nvidia/llama-nemotron-embed-vl-1b-v2:free`.
+- **Несовпадение размерности вектора Qdrant**: При смене embedding-модели в `.env` убедитесь, что установлен флаг `QDRANT_RECREATE_COLLECTIONS=true`, и заново запустите `python index_tracks.py`. При необходимости явно задайте `EMBEDDING_DIMENSION`.
 - **Ошибки атрибута skills**: Навыки хранятся в поле `required_skills` (формат JSONB: `{"Python": 0.5}`). Убедитесь, что используете правильное поле при обращении к модели `Track`.

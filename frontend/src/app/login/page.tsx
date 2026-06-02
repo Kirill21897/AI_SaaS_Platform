@@ -5,6 +5,25 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { login, register } from '@/lib/api';
 
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_PASSWORD ?? '';
+const DEMO_USERS = [
+  {
+    label: 'Backend Developer',
+    icon: '👨‍💻',
+    email: process.env.NEXT_PUBLIC_DEMO_BACKEND_EMAIL ?? '',
+  },
+  {
+    label: 'Data Analyst',
+    icon: '📊',
+    email: process.env.NEXT_PUBLIC_DEMO_DATA_EMAIL ?? '',
+  },
+  {
+    label: 'Пустой профиль',
+    icon: '👻',
+    email: process.env.NEXT_PUBLIC_DEMO_EMPTY_EMAIL ?? '',
+  },
+].filter((user) => user.email);
+
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState('');
@@ -78,32 +97,25 @@ export default function LoginPage() {
 
         <div className="mt-8 border-t border-slate-200 pt-6">
           <h3 className="text-sm font-semibold text-slate-700 mb-3 text-center">Демо-аккаунты (Quick Login)</h3>
-          <div className="grid grid-cols-1 gap-2">
-            <button
-              type="button"
-              onClick={() => { setEmail('backend@demo.com'); setPassword('password123'); setIsLogin(true); }}
-              className="w-full bg-slate-100 text-slate-700 p-2 rounded text-sm hover:bg-slate-200 transition text-left flex justify-between items-center"
-            >
-              <span>👨‍💻 Backend Developer</span>
-              <span className="text-xs text-slate-400">backend@demo.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setEmail('data@demo.com'); setPassword('password123'); setIsLogin(true); }}
-              className="w-full bg-slate-100 text-slate-700 p-2 rounded text-sm hover:bg-slate-200 transition text-left flex justify-between items-center"
-            >
-              <span>📊 Data Analyst</span>
-              <span className="text-xs text-slate-400">data@demo.com</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => { setEmail('empty@demo.com'); setPassword('password123'); setIsLogin(true); }}
-              className="w-full bg-slate-100 text-slate-700 p-2 rounded text-sm hover:bg-slate-200 transition text-left flex justify-between items-center"
-            >
-              <span>👻 Пустой профиль</span>
-              <span className="text-xs text-slate-400">empty@demo.com</span>
-            </button>
-          </div>
+          {DEMO_USERS.length > 0 ? (
+            <div className="grid grid-cols-1 gap-2">
+              {DEMO_USERS.map((user) => (
+                <button
+                  key={user.email}
+                  type="button"
+                  onClick={() => { setEmail(user.email); setPassword(DEMO_PASSWORD); setIsLogin(true); }}
+                  className="w-full bg-slate-100 text-slate-700 p-2 rounded text-sm hover:bg-slate-200 transition text-left flex justify-between items-center"
+                >
+                  <span>{user.icon} {user.label}</span>
+                  <span className="text-xs text-slate-400">{user.email}</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 text-center">
+              Демо-аккаунты не настроены. Добавьте `NEXT_PUBLIC_DEMO_*` переменные в `frontend/.env.local`.
+            </p>
+          )}
         </div>
 
         <div className="mt-6 text-center">

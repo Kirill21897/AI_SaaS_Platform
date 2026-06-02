@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { AppHeader } from "@/components/app-header";
 import { fetchAPI } from "@/lib/api";
@@ -17,6 +18,14 @@ type Track = {
   required_skills?: Record<string, number>;
   tasks?: string[];
 };
+
+function formatTrackMode(value?: string | null): string {
+  if (!value) return "Не указан";
+  if (value === "Remote") return "Удаленно";
+  if (value === "Office" || value === "Onsite") return "Офис";
+  if (value === "Hybrid") return "Гибрид";
+  return value;
+}
 
 type TrackForm = {
   title: string;
@@ -151,23 +160,51 @@ function TracksPageInner() {
                   }`}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold text-slate-900">{track.title}</h3>
-                      <p className="mt-1 text-sm text-slate-600">{track.description}</p>
+                    <div className="min-w-0">
+                      <Link
+                        href={`/tracks/${track.id}`}
+                        className="text-lg font-semibold text-slate-900 transition hover:text-blue-700 hover:underline"
+                      >
+                        {track.title}
+                      </Link>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{track.description}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(track.id)}
-                      className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
-                    >
-                      Удалить
-                    </button>
+                    <div className="flex shrink-0 flex-col gap-2">
+                      <Link
+                        href={`/tracks/${track.id}`}
+                        className="rounded-lg bg-blue-600 px-3 py-1.5 text-center text-sm font-medium text-white hover:bg-blue-700"
+                      >
+                        Открыть
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(track.id)}
+                        className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Удалить
+                      </button>
+                    </div>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{track.specialization}</span>
-                    <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{track.region ?? "—"}</span>
-                    <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{track.format ?? "—"}</span>
+                    <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{track.region ?? "Регион не указан"}</span>
+                    <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">{formatTrackMode(track.format)}</span>
+                    {typeof track.min_gpa === "number" && track.min_gpa > 0 && (
+                      <span className="rounded bg-slate-100 px-2 py-1 text-slate-600">GPA от {track.min_gpa}</span>
+                    )}
                   </div>
+                  {track.tasks && track.tasks.length > 0 && (
+                    <div className="mt-4">
+                      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Что включает программа
+                      </div>
+                      <div className="space-y-1 text-sm text-slate-700">
+                        {track.tasks.slice(0, 3).map((task) => (
+                          <div key={task}>• {task}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </article>
               ))}
               {tracks.length === 0 && <p className="text-sm text-slate-500">Треки пока не добавлены.</p>}

@@ -1,4 +1,4 @@
-# ML/AI‑модуль карьерно‑образовательной платформы — Agentic RAG + LangGraph + локальная Ollama
+# ML/AI‑модуль карьерно‑образовательной платформы — Agentic RAG + LangGraph + OpenRouter
 
 Этот документ описывает **ML/AI часть** большой платформы карьерно‑образовательных треков: модуль персонализированного подбора и семантического поиска для нефтегазовой отрасли.
 
@@ -23,9 +23,9 @@ flowchart TB
   Orchestrator --> Agent[LangGraph ReAct Agent]
 
   Agent <--> Tools[Tools: Search, Filter, Fetch Details]
-  Agent <--> LLM[Ollama: Qwen3.5:4b]
+  Agent <--> LLM[OpenRouter: Qwen 3.5 Flash]
 
-  Tools --> Embed[Ollama Embeddings: Qwen3]
+  Tools --> Embed[OpenRouter Embeddings: NVIDIA Nemotron]
   Embed --> Qdrant[(Qdrant Vector DB)]
   Tools --> PG[(Postgres: Tracks & Profiles)]
 ```
@@ -44,13 +44,13 @@ flowchart TB
 
 ## 4) Какие модели используются
 ### 4.1 Embeddings
-- Модель: `qwen3-embedding:0.6b` (через Ollama).
+- Модель: `nvidia/llama-nemotron-embed-vl-1b-v2:free` (через OpenRouter).
 - Использование: векторизация треков и пользовательских запросов.
 
 ### 4.2 LLM (Агентский слой)
-- Модель: `qwen3.5:4b` (через Ollama).
+- Модель: `qwen/qwen3.5-flash-02-23` (через OpenRouter).
 - Использование: LangGraph ReAct агент (роутинг, вызов инструментов, генерация объяснений).
-- **Важно:** обе модели запускаются с полным аппаратным ускорением на GPU через настройки Docker (NVIDIA CUDA).
+- **Важно:** и чат, и embeddings идут через единый OpenRouter API.
 
 ---
 

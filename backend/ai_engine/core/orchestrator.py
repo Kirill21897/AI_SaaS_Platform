@@ -4,17 +4,18 @@ import re
 from typing import Any, AsyncGenerator, Dict
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from openai import APIConnectionError, APIError, APIStatusError, AuthenticationError, RateLimitError
 
-from ai_engine.core.llm import OllamaLLM
+from ai_engine.core.llm import OpenRouterLLM
 from ai_engine.memory.redis_store import MemoryStore
 from ai_engine.agentic_rag.tools import AgenticRAGTools
 from ai_engine.agentic_rag.graph import build_rag_graph
 
 class AIEngineOrchestrator:
-    def __init__(self, db, rec_engine, memory_store: MemoryStore, llm: OllamaLLM = None):
+    def __init__(self, db, rec_engine, memory_store: MemoryStore, llm: OpenRouterLLM = None):
         self.db = db
         self.memory = memory_store
-        self.llm = llm or OllamaLLM()
+        self.llm = llm or OpenRouterLLM()
         self.rag_tools = AgenticRAGTools(db, rec_engine, self.llm)
         self.graph = build_rag_graph(self.rag_tools, self.llm)
 
@@ -76,10 +77,30 @@ class AIEngineOrchestrator:
         }
 
         # Run the graph
-        result_state = await self.graph.ainvoke(rag_state)
-        
-        final_message = result_state["messages"][-1]
-        final_response = final_message.content if final_message.content else "Извините, произошла ошибка."
+        try:
+            result_state = await self.graph.ainvoke(rag_state)
+            final_message = result_state["messages"][-1]
+            final_response = final_message.content if final_message.content else "Извините, произошла ошибка."
+        except RateLimitError:
+            final_response = (
+                "OpenRouter временно ограничил запросы к модели "
+                f"`{self.llm.model_name}`. Повтори попытку чуть позже или переключи модель на менее загруженную."
+            )
+        except APIStatusError as exc:
+            if getattr(exc, "status_code", None) == 402:
+                final_response = (
+                    "OpenRouter отклонил запрос из-за лимита бюджета или слишком большого `max_tokens`. "
+                    "Я уже ограничил длину ответа в коде, но если ошибка повторится, уменьши "
+                    "`OPENROUTER_MAX_TOKENS` или пополни баланс OpenRouter."
+                )
+            else:
+                final_response = f"OpenRouter вернул ошибку {getattr(exc, 'status_code', 'API')}. Попробуй еще раз чуть позже."
+        except AuthenticationError:
+            final_response = "OpenRouter отклонил запрос: проверь `OPENROUTER_API_KEY` и настройки доступа к модели."
+        except (APIConnectionError, APIError):
+            final_response = "Не удалось получить ответ от OpenRouter. Повтори попытку через несколько секунд."
+        except Exception:
+            final_response = "Во время обработки запроса произошла внутренняя ошибка. Попробуй еще раз чуть позже."
         
         # Save updated state to memory
         state["history"] = history + [{"role": "user", "content": message}, {"role": "assistant", "content": final_response}]

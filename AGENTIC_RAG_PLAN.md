@@ -60,7 +60,7 @@ User Message
 langchain>=0.1.0
 langgraph>=0.0.1
 langchain-community>=0.0.1
-langchain-openai>=0.0.1          # or langchain-ollama
+langchain-openai>=0.0.1          # OpenRouter-compatible client
 langsmith>=0.0.1                  # debugging & monitoring
 pydantic-ai>=0.1.0               # structured output validation
 

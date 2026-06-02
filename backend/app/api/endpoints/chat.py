@@ -32,20 +32,57 @@ def _make_session_id(user_id: int, x_session_id: str | None) -> str:
 
 @router.get("/health")
 def chat_health():
-    base = settings.OLLAMA_BASE_URL.rstrip("/")
-    try:
-        version = httpx.get(f"{base}/api/version", timeout=5).json()
-        show = httpx.post(f"{base}/api/show", json={"name": settings.OLLAMA_CHAT_MODEL}, timeout=15).json()
+    if settings.OPENROUTER_API_KEY is None or not settings.OPENROUTER_API_KEY.get_secret_value():
         return {
-            "ollama_base_url": settings.OLLAMA_BASE_URL,
-            "ollama_version": version.get("version"),
-            "chat_model": settings.OLLAMA_CHAT_MODEL,
-            "chat_model_loaded": bool(show.get("modelfile") or show.get("details") or show.get("modelinfo")),
+            "llm_provider": "openrouter",
+            "chat_base_url": settings.OPENROUTER_BASE_URL,
+            "chat_model": settings.OPENROUTER_MODEL,
+            "embedding_model": settings.OPENROUTER_EMBEDDING_MODEL,
+            "error": "OPENROUTER_API_KEY is not set",
+        }
+
+    chat_base = settings.OPENROUTER_BASE_URL.rstrip("/")
+    headers = {
+        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY.get_secret_value()}",
+        "HTTP-Referer": settings.OPENROUTER_SITE_URL,
+        "X-Title": settings.OPENROUTER_APP_NAME,
+    }
+    try:
+        models_resp = httpx.get(f"{chat_base}/models", headers=headers, timeout=15)
+        models_resp.raise_for_status()
+        models = models_resp.json().get("data") or []
+
+        chat_model_available = any(model.get("id") == settings.OPENROUTER_MODEL for model in models)
+
+        embedding_error = None
+        embedding_ready = False
+        try:
+            embedding_resp = httpx.post(
+                f"{chat_base}/embeddings",
+                json={"model": settings.OPENROUTER_EMBEDDING_MODEL, "input": "ping"},
+                headers=headers,
+                timeout=30,
+            )
+            embedding_resp.raise_for_status()
+            embedding_ready = True
+        except Exception as exc:
+            embedding_error = str(exc)
+
+        return {
+            "llm_provider": "openrouter",
+            "chat_base_url": settings.OPENROUTER_BASE_URL,
+            "chat_model": settings.OPENROUTER_MODEL,
+            "chat_model_available": chat_model_available,
+            "embedding_base_url": settings.OPENROUTER_BASE_URL,
+            "embedding_model": settings.OPENROUTER_EMBEDDING_MODEL,
+            "embedding_ready": embedding_ready,
+            "embedding_error": embedding_error,
         }
     except Exception as e:
         return {
-            "ollama_base_url": settings.OLLAMA_BASE_URL,
-            "chat_model": settings.OLLAMA_CHAT_MODEL,
+            "llm_provider": "openrouter",
+            "chat_base_url": settings.OPENROUTER_BASE_URL,
+            "chat_model": settings.OPENROUTER_MODEL,
             "error": str(e),
         }
 
